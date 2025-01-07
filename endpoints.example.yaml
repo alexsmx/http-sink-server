@@ -1,0 +1,115 @@
+# Add a global config section for common settings
+config:
+  default_callback_server: "http://your-default-server:8000"  # fallback default
+
+endpoints:
+  /make_call:
+    description: "Simulates a call status update sequence"
+    method: POST
+    callback_server: "http://your-callback-server:8000"  # specific for this endpoint
+    initial_response:
+      status: 200
+      body:
+        status: "ok"
+        message: "Call simulation started"
+        id_log_call: "{{request.body.id_log_call}}"
+        request_id: "{{uuid}}"
+        trace_id: "{{uuid_hex}}"
+    
+    sequence:
+      - delay:
+          min: 2
+          max: 3
+        webhook:
+          url: "{{endpoint.callback_server|config.default_callback_server}}/api/update_status/"
+          method: POST
+          headers:
+            Content-Type: "application/json"
+            Authorization: "Token YOUR_AUTH_TOKEN_HERE"
+            X-Request-ID: "{{initial_response.body.request_id}}"
+            X-Original-Caller: "{{request.origin.ip}}"
+            X-Original-Host: "{{request.origin.host}}"
+          body:
+            id_log_chat: "{{initial_response.body.id_log}}"
+            status_chat: "in_progress"
+            message: "Simulated chat update"
+            transaction_id: "{{uuid}}"
+
+      - delay:
+          min: 7
+          max: 12
+        webhook:
+          url: "{{endpoint.callback_server|config.default_callback_server}}/api/update_status/"
+          method: POST
+          headers:
+            Content-Type: "application/json"
+            Authorization: "Token YOUR_AUTH_TOKEN_HERE"
+            X-Request-ID: "{{initial_response.body.request_id}}"
+            X-Original-Caller: "{{request.origin.ip}}"
+            X-Original-Host: "{{request.origin.host}}"
+          body:
+            id_log_call: "{{initial_response.body.id_log_chat}}"
+            status_call: "{{random_choice('finished','finished','finished','finished','finished', 'finished','no_response', 'pending', 'failed')}}"
+            message: "Simulated call update"
+            duration: "{{random_int(30, 300)}}"
+            transaction_id: "{{uuid}}"
+            result:
+              result:
+                - id: "{{uuid}}"
+                  message: "Example result message 1"
+                  success: false
+                - id: "{{uuid}}"
+                  message: "Example result message 2"
+                  success: false
+            url_transcription: "https://storage.example.com/calls/messages/{{uuid_hex}}.json"
+            url_recording: "https://storage.example.com/calls/detailed_messages/{{uuid_hex}}.json"
+            transcription:
+              - role: "system"
+                content: "Example system message"
+                timestamp: 1735321858.7015696
+
+              - role: "assistant"
+                content: "Hello, good morning. Am I speaking with John Doe?"
+                timestamp: 1735321859.7015696
+              
+              - role: "user"
+                content: "Yes, speaking."
+                timestamp: 1735321859.7015696
+              
+            metadata:
+              call_quality: "high"
+              background_noise: "low"
+              language: "en-US"
+              total_turns: 4
+              sentiment_score: 0.75 
+
+      - delay:
+          min: 2
+          max: 5
+        webhook:
+          url: "{{endpoint.callback_server|config.default_callback_server}}/api/logcall/{{initial_response.body.id_log_call}}/evaluation/"
+          method: POST
+          headers:
+            Content-Type: "application/json"
+            Authorization: "Token YOUR_AUTH_TOKEN_HERE"
+            X-Request-ID: "{{initial_response.body.request_id}}"
+            X-Original-Caller: "{{request.origin.ip}}"
+            X-Original-Host: "{{request.origin.host}}"
+
+  /another_endpoint:
+    description: "Handles different callback destination"
+    method: POST
+    callback_server: "http://another-server:5000"
+    initial_response:
+      status: 200
+      body:
+        message: "Processing started"
+    sequence:
+      - delay:
+          min: 1
+          max: 2
+        webhook:
+          url: "{{endpoint.callback_server|config.default_callback_server}}/different/path"
+          method: POST
+          body:
+            status: "completed" 
