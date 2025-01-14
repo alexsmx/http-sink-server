@@ -42,6 +42,8 @@ class EndpointConfig:
                 return str(uuid.uuid4())
             elif expr == 'uuid_hex':
                 return uuid.uuid4().hex
+            elif expr == 'current_epoch':
+                return str(int(time.time()))
             elif expr.startswith('random_choice'):
                 # Extract choices from the expression
                 choices_str = expr[expr.find('(')+1:expr.find(')')]

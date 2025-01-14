@@ -15,6 +15,7 @@ endpoints:
         id_log_call: "{{request.body.id_log_call}}"
         request_id: "{{uuid}}"
         trace_id: "{{uuid_hex}}"
+        timestamp: "{{current_epoch}}"
     
     sequence:
       - delay:
