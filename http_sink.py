@@ -11,6 +11,8 @@ import time
 import requests
 from typing import Dict, Any
 import uuid
+from flask import Flask
+from manual_calling_ui import manual_calling_bp
 
 class EndpointConfig:
     def __init__(self, config_file: str):
@@ -26,7 +28,7 @@ class EndpointConfig:
             if path == endpoint and method == config.get('method', 'GET'):
                 # Add endpoint config to the returned config
                 config['endpoint'] = {
-                    'callback_server': config.get('callback_server', '')
+                    'callback_server': config.get('callback_server', self.config.get('config', {}).get('default_callback_server', ''))
                 }
                 return config
         return None
@@ -48,7 +50,7 @@ class EndpointConfig:
                 # Extract choices from the expression
                 choices_str = expr[expr.find('(')+1:expr.find(')')]
                 choices = [choice.strip().strip("'\"") for choice in choices_str.split(',')]
-                return random.choice(choices)
+                return str(random.choice(choices))
             
             # Handle fallback syntax with |
             if '|' in expr:
@@ -92,7 +94,9 @@ class EndpointConfig:
         context['config'] = self.config.get('config', {})
         
         if isinstance(data, str):
-            return self.evaluate_template(data, context)
+            result = self.evaluate_template(data, context)
+            # Convert any non-string results to string
+            return str(result) if not isinstance(result, str) else result
         elif isinstance(data, dict):
             return {k: self.process_data(v, context) for k, v in data.items()}
         elif isinstance(data, list):
@@ -156,7 +160,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                         'real_ip': self.headers.get('X-Real-IP', ''),
                         'host': self.headers.get('Host', '')
                     }
-                }
+                },
+                'endpoint': endpoint_config.get('endpoint', {}),
+                'config': self.config.config.get('config', {})
             }
 
             # Process initial response
@@ -233,6 +239,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._handle_request()
 
     def do_POST(self):
+        # Use the existing _handle_request method that processes YAML config and sequences
         self._handle_request()
 
     def do_PUT(self):
@@ -241,16 +248,32 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         self._handle_request()
 
-def run_server(port=8000):
+    def do_OPTIONS(self):
+        # Handle CORS preflight request
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', 'http://localhost:4001')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+def run_sink_server(port=8000):
     server_address = ('', port)
     httpd = ThreadingHTTPServer(server_address, RequestHandler)
     print(f"Starting HTTP sink server on port {port}...")
     httpd.serve_forever()
 
+def run_ui_server(port=8080):
+    app = Flask(__name__)
+    app.register_blueprint(manual_calling_bp)
+    print(f"Starting UI server on port {port}...")
+    app.run(host='0.0.0.0', port=port)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='HTTP Sink Server')
     parser.add_argument('-p', '--port', type=int, default=4000,
-                      help='Port to run the server on (default: 4000)')
+                      help='Port to run the sink server on (default: 4000)')
+    parser.add_argument('--ui-port', type=int, default=4001,
+                      help='Port to run the UI server on (default: 4001)')
     parser.add_argument('-c', '--callback-url', type=str,
                       help='Callback server URL (overrides YAML config)')
     
@@ -265,4 +288,10 @@ if __name__ == "__main__":
             config['config']['callback_server'] = args.callback_url
             yaml.dump(config, f)
     
-    run_server(args.port) 
+    # Start the sink server in a separate thread
+    sink_thread = threading.Thread(target=run_sink_server, args=(args.port,))
+    sink_thread.daemon = True
+    sink_thread.start()
+    
+    # Run the UI server in the main thread
+    run_ui_server(args.ui_port) 
