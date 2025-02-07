@@ -165,6 +165,20 @@ class RequestHandler(BaseHTTPRequestHandler):
                 'config': self.config.config.get('config', {})
             }
 
+            # Handle initial response delay
+            delay_config = endpoint_config.get('initial_response_delay', 
+                self.config.config.get('config', {}).get('default_initial_response_delay', {'min': 0, 'max': 0}))
+            
+            if delay_config:
+                delay_time = random.uniform(delay_config.get('min', 0), delay_config.get('max', 0))
+                if delay_time > 0:
+                    print(f"[{request_id}] Waiting {delay_time:.2f}s before initial response")
+                    # Use a separate thread for the delay to prevent blocking
+                    delay_thread = threading.Thread(target=time.sleep, args=(delay_time,))
+                    delay_thread.start()
+                    delay_thread.join()
+                    print(f"[{request_id}] Initial response delay completed")
+
             # Process initial response
             initial_response = endpoint_config.get('initial_response', {})
             processed_response = self.config.process_data(initial_response.get('body', {}), context)
