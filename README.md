@@ -86,6 +86,7 @@ The server uses a YAML configuration file (`endpoints.yaml`) to define endpoint 
 - [ ] Add proper CLI interface
 - [ ] Add configuration validation
 - [ ] Add SSL/TLS support
+- [ ] Add tests
 
 ## Contributing
 
